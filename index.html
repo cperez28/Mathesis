@@ -1,0 +1,325 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Mathesis— Calculus</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <!-- MathJax -->
+  <script>
+    window.MathJax = {
+      tex: {inlineMath: [['\\(','\\)'], ['$', '$']], displayMath: [['\\[','\\]']]},
+      svg: {fontCache: 'global'},
+      startup: { typeset: false }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" defer></script>
+
+  <!-- math.js + nerdamer -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjs@11/lib/browser/math.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/nerdamer/1.1.13/nerdamer.core.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/nerdamer/1.1.13/Algebra.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/nerdamer/1.1.13/Calculus.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/nerdamer/1.1.13/Solve.min.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- jsPDF + plugins -->
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/svg2pdf.js@2.2.4/dist/svg2pdf.umd.min.js"></script>
+</head>
+<body>
+  <header>
+    <div class="wrap row space-between">
+      <div class="brand">
+        <img id="logo" src="logo.png" alt="Logo" onerror="this.style.display='none'">
+        <div>
+          <div style="font-size: 40px;"><b>Mathesis</b></div>
+          
+          <div class="small muted">Límites · Derivadas · Integrales</div>
+        </div>
+      </div>
+      <nav class="row">
+        <button class="tab active" data-mode="practica">Practicar</button>
+        <button class="tab" data-mode="examen">Examen</button>
+        <button class="tab" data-mode="analitica">Analítica</button>
+        <!-- Botón Estilos (reemplaza Temas) -->
+        <button id="btn-styles" class="pillbtn">Estilos</button>
+        <button id="btn-focus" class="pillbtn">Enfoque</button>
+        <button id="btn-fullscreen" class="pillbtn">Pantalla completa</button>
+        <span class="user-badge">
+          <span class="avatar"></span>
+          <span id="user-name">Invitado</span>
+          <button id="btn-switch" class="pillbtn" style="padding:6px 10px">Cambiar</button>
+        </span>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Drawer de Estilos -->
+  <aside id="styles-menu" class="styles-menu" aria-hidden="true">
+    <div class="row space-between">
+      <h3>Configuración de estilos</h3>
+      <button id="btn-styles-close">✕</button>
+    </div>
+
+    <div class="styles-section">
+      <h4>Paletas rápidas</h4>
+      <div class="palette-row">
+        <div class="swatch big" data-key="azul" title="Azul"></div>
+        <div class="swatch big" data-key="verde" title="Verde"></div>
+        <div class="swatch big" data-key="vino" title="Vino"></div>
+        <div class="swatch big" data-key="naranja" title="Naranja"></div>
+        <div class="swatch big" data-key="morado" title="Morado"></div>
+        <div class="swatch big" data-key="neutral" title="Neutral"></div>
+      </div>
+      <div class="help mt-8">Las paletas afectan botones, focos, vínculos, gráficas y PDFs.</div>
+    </div>
+
+    <div class="styles-section">
+      <h4>Colores institucionales</h4>
+      <div class="styles-fields">
+        <div>
+          <label>Primario</label>
+          <input type="color" id="col-primary" value="#4f8cff" />
+        </div>
+        <div>
+          <label>Secundario</label>
+          <input type="color" id="col-secondary" value="#5dc9ff" />
+        </div>
+        <div class="styles-row" style="grid-column:1/3">
+          <label class="pill"><input type="checkbox" id="theme-light"> Modo claro</label>
+          <button id="btn-save-theme" class="primary right">Aplicar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="styles-section">
+      <h4>Ajustes avanzados</h4>
+      <div class="styles-fields">
+        <div>
+          <label>Radio (bordes): <span id="val-radius">16</span>px</label>
+          <input type="range" id="range-radius" min="8" max="28" value="16"/>
+        </div>
+        <div>
+          <label>Contraste: <span id="val-contrast">1.0</span></label>
+          <input type="range" id="range-contrast" step="0.05" min="0.8" max="1.2" value="1.0"/>
+        </div>
+        <div>
+          <label>Tamaño fuente: <span id="val-font">1.00</span>x</label>
+          <input type="range" id="range-font" step="0.05" min="0.9" max="1.3" value="1.0"/>
+        </div>
+      </div>
+    </div>
+
+    <div class="styles-section">
+      <button id="btn-reset-theme" class="bad">Restablecer todo</button>
+    </div>
+  </aside>
+
+  <main class="wrap">
+    <!-- Controles globales -->
+    <section class="panel">
+      <div class="row space-between">
+        <div class="row" style="flex-wrap:wrap; gap:8px">
+          <span class="pill"><b>Tema</b>
+            <select id="sel-tema">
+              <option value="limites">Límites</option>
+              <option value="derivadas">Derivadas</option>
+              <option value="integrales">Integrales</option>
+            </select>
+          </span>
+          <span class="pill"><b>Nivel</b>
+            <select id="sel-nivel">
+              <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option>
+              <option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option>
+            </select>
+          </span>
+          <span class="pill"><b>Modo</b>
+            <span id="lbl-modo" class="tag">Practicar</span>
+          </span>
+        </div>
+        <div class="row kbdbar">
+          <button data-ins="\\lim">lim</button>
+          <button data-ins="\\to">→</button>
+          <button data-ins="\\infty">∞</button>
+          <button data-ins="\\frac{d}{dx}">d/dx</button>
+          <button data-ins="\\int">∫</button>
+          <button data-ins="\\left|x\\right|">|x|</button>
+          <button data-ins="\\sqrt{}">√</button>
+          <button data-ins="\\ln">ln</button>
+          <button data-ins="\\pi">π</button>
+          <button data-ins="e">e</button>
+        </div>
+      </div>
+      <div class="inline-help">Cada <b>subtema</b> (Límites, Derivadas, Integrales) mantiene <b>niveles 1–8</b> de dificultad. Selecciona arriba y practica o crea un examen.</div>
+    </section>
+
+    <!-- Panel PRÁCTICA -->
+    <section id="panel-practica" class="panel grid grid-2">
+      <div class="problem-card">
+        <h3>Problema</h3>
+        <div id="problem-tex" style="min-height:64px"></div>
+        <div class="muted" id="problem-tags"></div>
+
+        <h3 class="mt-12">Tu respuesta</h3>
+        <textarea id="tx-respuesta" placeholder="Escribe tu resultado. Ej: 2a, x^2+3x, ∞, 0, 5/2, etc."></textarea>
+        <div class="ans-preview">
+          <div class="title">Vista previa</div>
+          <div id="ans-preview"></div>
+        </div>
+
+        <div class="row mt-8" style="gap:8px">
+          <button id="btn-verificar" class="primary">Verificar</button>
+          <button id="btn-siguiente">Siguiente</button>
+          <span id="lbl-estado" class="status"></span>
+          <span id="lbl-feedback" class="muted"></span>
+        </div>
+      </div>
+
+      <div class="flexcol">
+        <div class="problem-card">
+          <h3>Métrica (sesión)</h3>
+          <div class="row">
+            <div class="chip">Correctas: <b id="m-ok">0</b></div>
+            <div class="chip">Incorrectas: <b id="m-bad">0</b></div>
+            <div class="chip">Racha: <b id="m-racha">0</b></div>
+          </div>
+          <div class="footer-note">Las métricas también se guardan por tema y nivel en Analítica.</div>
+        </div>
+
+        <div class="problem-card">
+          <h3>Atajos</h3>
+          <div class="kbdbar">
+            <span class="kbd">^</span>
+            <span class="kbd">sqrt()</span>
+            <span class="kbd">sin()</span>
+            <span class="kbd">cos()</span>
+            <span class="kbd">tan()</span>
+            <span class="kbd">exp()</span>
+            <span class="kbd">ln()</span>
+            <span class="kbd">abs()</span>
+          </div>
+          <div class="footer-note">Acepta expresiones tipo <code>math.js</code>. Para ∞ escribe <code>infinity</code> o <code>∞</code>.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Panel EXAMEN -->
+    <section id="panel-examen" class="panel hidden">
+      <div class="row" style="gap:12px; flex-wrap:wrap">
+        <span class="pill">Preguntas
+          <input id="ex-npreg" type="number" value="8" min="3" max="30" style="width:90px"/>
+        </span>
+        <span class="pill">Límite de tiempo (min)
+          <input id="ex-min" type="number" value="15" min="3" max="180" style="width:90px"/>
+        </span>
+        <button id="btn-examen-start" class="primary">Iniciar examen</button>
+        <div class="chip">Estado: <b id="ex-estado">Sin iniciar</b></div>
+        <div class="right row">
+          <button id="btn-ex-export-csv">Exportar CSV</button>
+          <button id="btn-ex-export-pdf-simple">PDF Reporte</button>
+        </div>
+      </div>
+
+      <div id="ex-running" class="hidden mt-12">
+        <div class="row space-between">
+          <div class="chip">Pregunta <b id="ex-qnum">1</b>/<span id="ex-qtot">8</span></div>
+          <div class="chip">Tiempo: <b id="ex-timer">--:--</b></div>
+        </div>
+        <div class="problem-card mt-8">
+          <div id="ex-problem-tex" style="min-height:64px"></div>
+          <div class="muted" id="ex-problem-tags"></div>
+          <textarea id="ex-respuesta" placeholder="Respuesta aquí..."></textarea>
+          <div class="ans-preview">
+            <div class="title">Vista previa</div>
+            <div id="ex-ans-preview"></div>
+          </div>
+          <div class="row mt-8" style="gap:8px">
+            <button id="btn-ex-verificar" class="primary">Verificar</button>
+            <button id="btn-ex-skip">Saltar</button>
+            <span id="ex-estado-item" class="status"></span>
+          </div>
+        </div>
+      </div>
+
+      <div id="ex-summary" class="hidden mt-12">
+        <h3>Resumen</h3>
+        <div class="row" style="gap:12px; flex-wrap:wrap">
+          <div class="chip">Aciertos: <b id="ex-ok">0</b></div>
+          <div class="chip">Fallos: <b id="ex-bad">0</b></div>
+          <div class="chip">Puntaje: <b id="ex-score">0%</b></div>
+          <div class="chip">Tema: <b id="ex-t-seleccion"></b></div>
+          <div class="chip">Nivel: <b id="ex-n-seleccion"></b></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Panel ANALÍTICA -->
+    <section id="panel-analitica" class="panel hidden">
+      <h3>Analítica por tema y nivel</h3>
+      <div class="row" style="flex-wrap:wrap; gap:12px">
+        <div class="chip">Usuario: <b id="an-usr">Invitado</b></div>
+        <div class="chip">Total ítems: <b id="an-total">0</b></div>
+        <div class="chip">Precisión global: <b id="an-acc">0%</b></div>
+        <button id="btn-an-csv">Exportar CSV</button>
+        <button id="btn-an-pdf">PDF detallado</button>
+        <button id="btn-an-pdf-compact">PDF compacto</button>
+      </div>
+
+      <div class="charts-grid mt-12">
+        <div class="chart-wrap"><canvas id="ch-temas"></canvas></div>
+        <div class="chart-wrap"><canvas id="ch-niveles"></canvas></div>
+      </div>
+
+      <div class="problem-card mt-12">
+        <h3>Métricas detalladas</h3>
+        <table class="table" id="tbl-metrics">
+          <thead>
+            <tr><th>Clave</th><th>Intentos</th><th>Aciertos</th><th>Precisión</th><th>t̄ (ms)</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="problem-card mt-12">
+        <h3>Historial</h3>
+        <table class="table" id="tbl-hist">
+          <thead>
+            <tr><th>Fecha</th><th>Tema</th><th>Nivel</th><th>Correcto</th><th>Modo</th><th>ms</th><th>Nota</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Diseñado por <b>Cristino Pérez</b>
+  </footer>
+
+  <!-- Login modal -->
+  <div id="modal-login" class="modal">
+    <div class="box">
+      <h3>Selecciona o crea tu usuario</h3>
+      <div class="row" style="flex-wrap:wrap">
+        <span class="pill">Usuarios existentes
+          <select id="sel-users" style="min-width:200px"></select>
+        </span>
+        <button id="btn-login-existing" class="primary">Entrar</button>
+      </div>
+      <div class="row mt-12" style="flex-wrap:wrap">
+        <input type="text" id="in-new-user" placeholder="Nuevo usuario..." />
+        <button id="btn-create-user">Crear y entrar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="pdf-math-scratch" style="visibility:hidden; position:absolute; left:-99999px; top:-99999px;"></div>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
