@@ -1527,9 +1527,113 @@ function generateIntegralsBank(){
     }
     const histBody = data.history.slice(-200).map(h=>[h.date,h.topic,h.level,h.correct,h.mode,h.ms,h.reason]);
     doc.autoTable({ startY:y, head:[['Fecha','Tema','Nivel','Correcto','Modo','ms','Nota']], body:histBody, theme:'grid', styles:{fontSize:9}, headStyles:{fillColor:[30,136,229], textColor:255}, margin:{left:12,right:12} });
+    
+    
+    
+    
+    //Watermark
+    
+
+    await addWatermarkAllPagesTiled(doc, { studentName,  score: data.correct, angle: 32, fontPx: 28, tileWmm: 60, gapXmm: 8, gapYmm: 6 });
+
+    
+    
     footerAllPages(doc, { studentName });
-    doc.save(opts.compact ? 'analitica_compacto.pdf' : 'analitica_detallado.pdf');
+    doc.save(opts.compact ? 'analitica_compacto.pdf' : 'analitica_detallado.pdf');// Marca de agua repetida en todas las páginas usando un PNG generado en canvas.
+// Texto: "Nombre del usuario · <score>%"
+async function addWatermarkAllPagesTiled(doc, {
+  studentName,
+  score,
+  angle = 32,          // grados de inclinación del texto dentro del tile
+  fontPx = 28,         // tamaño de fuente del tile (px, en canvas)
+  color = 'rgba(120,120,120,0.08)', // color del texto del tile (usa alfa real)
+  tileWmm = 60,        // ancho del tile al insertarlo en PDF (mm)
+  gapXmm = 8,          // separaciones entre tiles en X (mm)
+  gapYmm = 6           // separaciones entre tiles en Y (mm)
+} = {}) {
+  const text = `${studentName} · ${score}`;
+
+  // 1) Crear tile en canvas (bitmap independiente de jsPDF)
+  const { dataURL, pxW, pxH } = makeWatermarkTileDataURL({ text, angle, fontPx, color });
+
+  // 2) Medidas de página (compatibilidad 1.x/2.x)
+  const pageW = (doc.internal.pageSize.getWidth?.() ?? doc.internal.pageSize.width);
+  const pageH = (doc.internal.pageSize.getHeight?.() ?? doc.internal.pageSize.height);
+
+  // 3) Mantener proporción del tile al pasarlo a mm
+  const tileHmm = tileWmm * (pxH / pxW);
+
+  const pageCount = doc.getNumberOfPages();
+  for (let p = 1; p <= pageCount; p++) {
+    doc.setPage(p);
+
+    // Repetimos el tile incluyendo un margen negativo para cubrir rotación
+    for (let y = -tileHmm; y <= pageH + tileHmm; y += (tileHmm + gapYmm)) {
+      for (let x = -tileWmm; x <= pageW + tileWmm; x += (tileWmm + gapXmm)) {
+        doc.addImage(dataURL, 'PNG', x, y, tileWmm, tileHmm);
+      }
+    }
   }
+}
+
+// Genera un tile PNG con texto inclinado; devuelve dataURL y dimensiones en px.
+function makeWatermarkTileDataURL({ text, angle = 32, fontPx = 28, color = 'rgba(120,120,120,0.08)' }) {
+  // Tamaño base del tile en pixeles (ajustable)
+  const pxW = 420, pxH = 320;
+  const cnv = document.createElement('canvas');
+  cnv.width = pxW; cnv.height = pxH;
+  const ctx = cnv.getContext('2d');
+
+  // Fondo transparente
+  ctx.clearRect(0, 0, pxW, pxH);
+
+  // Texto diagonal centrado
+  ctx.save();
+  ctx.translate(pxW / 2, pxH / 2);
+  ctx.rotate((angle * Math.PI) / 180);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `bold ${fontPx}px Helvetica, Arial, sans-serif`;
+  ctx.fillStyle = color;
+  // leve sombra para legibilidad (muy tenue)
+  ctx.shadowColor = 'rgba(0,0,0,0.03)';
+  ctx.shadowBlur = 1;
+  ctx.fillText(text, 0, 0);
+  ctx.restore();
+
+  const dataURL = cnv.toDataURL('image/png');
+  return { dataURL, pxW, pxH };
+}
+
+
+
+
+
+
+
+    
+
+
+
+
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   async function buildExamPDF() {
   const PLATFORM = 'Mathesis';
   const studentName = USER.name || 'Estudiante';
@@ -1644,6 +1748,12 @@ try {
 } catch (e) {
   console.warn('No se pudo generar el QR del verificador:', e);
 }
+
+
+
+//Watermark
+
+await addWatermarkAllPagesTiled(doc, { studentName, score, angle: 32, fontPx: 28, tileWmm: 60, gapXmm: 8, gapYmm: 6 });
 
 
 
@@ -1845,6 +1955,73 @@ async function makeQRDataURL(text, sizePx = 220) {
   document.body.removeChild(host);
   if (!dataURL) throw new Error('QR vacío');
   return dataURL;
+}
+
+
+// Marca de agua repetida en todas las páginas usando un PNG generado en canvas.
+// Texto: "Nombre del usuario · <score>%"
+async function addWatermarkAllPagesTiled(doc, {
+  studentName,
+  score,
+  angle = 32,          // grados de inclinación del texto dentro del tile
+  fontPx = 28,         // tamaño de fuente del tile (px, en canvas)
+  color = 'rgba(120,120,120,0.08)', // color del texto del tile (usa alfa real)
+  tileWmm = 60,        // ancho del tile al insertarlo en PDF (mm)
+  gapXmm = 8,          // separaciones entre tiles en X (mm)
+  gapYmm = 6           // separaciones entre tiles en Y (mm)
+} = {}) {
+  const text = `${studentName} · ${score}%`;
+
+  // 1) Crear tile en canvas (bitmap independiente de jsPDF)
+  const { dataURL, pxW, pxH } = makeWatermarkTileDataURL({ text, angle, fontPx, color });
+
+  // 2) Medidas de página (compatibilidad 1.x/2.x)
+  const pageW = (doc.internal.pageSize.getWidth?.() ?? doc.internal.pageSize.width);
+  const pageH = (doc.internal.pageSize.getHeight?.() ?? doc.internal.pageSize.height);
+
+  // 3) Mantener proporción del tile al pasarlo a mm
+  const tileHmm = tileWmm * (pxH / pxW);
+
+  const pageCount = doc.getNumberOfPages();
+  for (let p = 1; p <= pageCount; p++) {
+    doc.setPage(p);
+
+    // Repetimos el tile incluyendo un margen negativo para cubrir rotación
+    for (let y = -tileHmm; y <= pageH + tileHmm; y += (tileHmm + gapYmm)) {
+      for (let x = -tileWmm; x <= pageW + tileWmm; x += (tileWmm + gapXmm)) {
+        doc.addImage(dataURL, 'PNG', x, y, tileWmm, tileHmm);
+      }
+    }
+  }
+}
+
+// Genera un tile PNG con texto inclinado; devuelve dataURL y dimensiones en px.
+function makeWatermarkTileDataURL({ text, angle = 32, fontPx = 28, color = 'rgba(120,120,120,0.08)' }) {
+  // Tamaño base del tile en pixeles (ajustable)
+  const pxW = 420, pxH = 320;
+  const cnv = document.createElement('canvas');
+  cnv.width = pxW; cnv.height = pxH;
+  const ctx = cnv.getContext('2d');
+
+  // Fondo transparente
+  ctx.clearRect(0, 0, pxW, pxH);
+
+  // Texto diagonal centrado
+  ctx.save();
+  ctx.translate(pxW / 2, pxH / 2);
+  ctx.rotate((angle * Math.PI) / 180);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `bold ${fontPx}px Helvetica, Arial, sans-serif`;
+  ctx.fillStyle = color;
+  // leve sombra para legibilidad (muy tenue)
+  ctx.shadowColor = 'rgba(0,0,0,0.03)';
+  ctx.shadowBlur = 1;
+  ctx.fillText(text, 0, 0);
+  ctx.restore();
+
+  const dataURL = cnv.toDataURL('image/png');
+  return { dataURL, pxW, pxH };
 }
 
 

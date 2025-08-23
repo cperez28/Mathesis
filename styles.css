@@ -48,7 +48,7 @@ header{
 .row{ display:flex; gap:12px; align-items:center }
 .space-between{ justify-content:space-between }
 .brand{ display:flex; align-items:center; gap:12px; font-weight:700; letter-spacing:.3px }
-.brand img#logo{ width:28px; height:28px; object-fit:contain; border-radius:6px; background:#0e131a }
+.brand img#logo{ width:auto; height:80px; object-fit:contain; border-radius:6px; background:#0e131a }
 .brand b{ background:linear-gradient(90deg,var(--accent),var(--accent-2));
           -webkit-background-clip:text; background-clip:text; color:transparent }
 
