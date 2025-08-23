@@ -1206,7 +1206,7 @@ function generateIntegralsBank(){
             if(!ok) reason='symbolic_mismatch';
           }else{ reason='unparsable'; }
         }
-        feedback = `Esperado ≈ ${expectedStr}`;
+        feedback = `Vuelve a intentarlo`;
       }
       else if(tema==='derivadas'){
         const {expr} = problem.data;
@@ -1222,7 +1222,7 @@ function generateIntegralsBank(){
           const tol = 1e-2 * Math.max(1, Math.abs(target));
           if(Math.abs(userv - target) > tol){ ok=false; reason='off_tolerance'; break; }
         }
-        feedback = 'Se verifica por evaluación numérica en puntos de prueba.';
+        feedback = 'Vuelve a intentarlo.';
       }
       else if(tema==='integrales'){
         const kind = problem.kind;
@@ -1494,7 +1494,10 @@ function generateIntegralsBank(){
     const studentName = USER.name || 'Estudiante';
     const doc = new jsPDF({ unit:'mm', format:'a4' });
     const accent = readAccent();
-    ribbonHeader(doc, { title: opts.compact ? 'Reporte Analítico (Compacto) — Cálculo' : 'Reporte Analítico — Cálculo', subtitle: todayStr(), accent });
+
+    
+    
+    ribbonHeader(doc, { title: opts.compact ? ' Mathesis - Reporte Analítico (Compacto) — Cálculo' : ' Mathesis - Reporte Analítico — Cálculo', subtitle: todayStr(), accent });
     doc.setFontSize(12); doc.text(`Estudiante: ${studentName}`, 12, 36); doc.text(`Rango: ${opts.range||'Todo'}`, 12, 42);
     let y = 50;
     const kpis = [
@@ -1527,30 +1530,346 @@ function generateIntegralsBank(){
     footerAllPages(doc, { studentName });
     doc.save(opts.compact ? 'analitica_compacto.pdf' : 'analitica_detallado.pdf');
   }
-  async function buildExamPDF(){
-    await ensureMathJax();
-    const ex = STATE.exam;
-    if(!ex){ alert('Primero completa un examen.'); return; }
-    const doc = new jsPDF({ unit:'mm', format:'a4' });
-    const accent = readAccent();
-    ribbonHeader(doc, { title:'Reporte de Examen — Cálculo', subtitle: todayStr(), accent });
-    doc.setFontSize(11);
-    doc.text(`Tema: ${ex.tema} · Nivel: ${ex.nivel}`, 12, 36);
-    const ok = ex.ok, bad = ex.bad; const tot = ok+bad; const score = Math.round(100*ok/Math.max(1,tot));
-    doc.text(`Aciertos: ${ok} · Fallos: ${bad} · Puntaje: ${score}%`, 12, 42);
-    let y = 50;
-    for(const r of ex.answers){
-      if(y > 260){ doc.addPage(); y = 20; }
-      doc.setFontSize(11); doc.text(`#${(r.i+1)} — ${r.ok?'✔ Correcto':'✘ Incorrecto'}`, 12, y); y+=5;
-      const dy = await drawTeX(doc, r.qtex.replace(/^\\\[|\\\]$/g,''), 12, y, 170);
-      y += (dy||10) + 2;
-      doc.setFontSize(10); doc.text(`Tu respuesta: ${r.ans}`, 12, y); y += 5;
-      if(r.feedback){ doc.setTextColor(120); doc.text(String(r.feedback), 12, y); doc.setTextColor(0); y += 7; }
-      y += 3;
-    }
-    footerAllPages(doc, { studentName: USER.name || 'Estudiante' });
-    doc.save('examen_reporte.pdf');
+  async function buildExamPDF() {
+  const PLATFORM = 'Mathesis';
+  const studentName = USER.name || 'Estudiante';
+  await ensureMathJax();
+
+
+  const ex = STATE && STATE.exam;
+  if (!ex) { alert('Primero completa un examen.'); return; }
+
+  // ----------------- Constantes de layout -----------------
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const A4_W = 210, A4_H = 297;
+  const MARGIN = 14;
+  const CONTENT_W = A4_W - 2 * MARGIN;
+
+  // Paleta
+  const accent = readAccent?.() || '#3f78ff';     // azul marca
+  const okFill = '#e8f6ee', okBorder = '#2e7d32'; // verde suave / borde
+  const badFill = '#fdeaea', badBorder = '#c62828'; // rojo suave / borde
+  const grayLine = 230;
+
+  // Helpers tipográficos
+  const setTitle = () => { doc.setFont('helvetica', 'bold'); doc.setFontSize(18); };
+  const setH = () => { doc.setFont('helvetica', 'bold'); doc.setFontSize(13); };
+  const setSub = () => { doc.setFont('helvetica', 'normal'); doc.setFontSize(11); };
+  const setBody = () => { doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5); };
+  const setSmall = () => { doc.setFont('helvetica', 'normal'); doc.setFontSize(9); };
+
+  // ----------------- Encabezado con banda -----------------
+  const headerH = 24;
+  doc.setFillColor(accent);
+  doc.rect(0, 0, A4_W, headerH, 'F');
+
+  // Marca plataforma (grande)
+  doc.setTextColor(255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(20);
+  doc.text(PLATFORM, MARGIN, 15);
+
+  // Título del reporte (blanco)
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12.5);
+  doc.text('Reporte de Examen — Cálculo', MARGIN, 21.2);
+
+  // Fecha (alineada a la derecha, dentro de la banda)
+  const dateStr = nowStr();
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10.5);
+  const dateW = doc.getTextWidth(dateStr);
+  doc.text(dateStr, A4_W - MARGIN - dateW, 12);
+
+  // ----------------- Badge de puntaje (debajo de la banda) -----------------
+  const ok = ex.ok || 0, bad = ex.bad || 0, tot = Math.max(1, ok + bad);
+  const score = Math.round((100 * ok) / tot);
+
+  // Meta (nombre / tema / nivel)
+  let y = headerH + 10;
+  setSub(); doc.setTextColor(0);
+  doc.text(`Estudiante: ${studentName}`, MARGIN, y); y += 6;
+  doc.text(`Tema: ${ex.tema} · Nivel: ${ex.nivel}`, MARGIN, y);
+
+  // Badge a la derecha, alineado con la línea inferior del meta, sin solapar fecha
+  drawScoreBadge(doc, {
+    x: A4_W - MARGIN - 25,
+    y: headerH + 8,
+    r: 16,
+    score,
+    ring: accent
+  });
+
+  y += 10;
+
+  // ----------------- Panel de barras (overview) -----------------
+  y = drawOverviewBars(doc, {
+    x: MARGIN, y: y, width: CONTENT_W, ok, bad, score, accent, okColor: okBorder, badColor: badBorder
+  }) + 10;
+
+  // Línea divisoria suave
+  doc.setDrawColor(grayLine);
+  doc.line(MARGIN, y, MARGIN + CONTENT_W, y);
+  doc.setDrawColor(0);
+  y += 10;
+
+  
+
+  // ----------------- Listado de reactivos en tarjetas -----------------
+const maxY = A4_H - 18; // deja espacio para el footer
+const answers = Array.isArray(ex.answers) ? ex.answers : [];
+
+
+// --- Verificador QR en la página 1 (Nombre + Tema + Nivel + Puntaje) ---
+try {
+  const verifier = `${studentName} | ${ex.tema} | ${ex.nivel} | Puntaje: ${score}%`;
+  const qrDataUrl = await makeQRDataURL(verifier, 220); // 220 px
+
+  const pageCount = doc.getNumberOfPages();
+  doc.setPage(1);
+
+  const qrSize = 26;                         // mm
+  const footerY = A4_H - 9.5;
+  const qrX = A4_W - MARGIN - qrSize;
+  const qrY = footerY - 4.5 - qrSize - 3;
+
+  doc.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(90);
+  doc.text('Verificador QR', qrX, qrY - 2);
+  doc.setTextColor(0);
+
+  doc.setPage(pageCount);
+} catch (e) {
+  console.warn('No se pudo generar el QR del verificador:', e);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  // ----------------- Footer en todas las páginas -----------------
+  applyFooterAllPages(doc, {
+    leftText: `Estudiante: ${studentName}`,
+    rightText: nowStr()
+  });
+
+  // Guardar
+  doc.save('examen_reporte.pdf');
+
+  // ============================ Helpers ============================
+
+  function drawScoreBadge(doc, { x, y, r, score, ring }) {
+    doc.setDrawColor(ring);
+    doc.setFillColor(255);
+    doc.setLineWidth(1.2);
+    doc.circle(x, y, r, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(19);
+    const s = `${score}%`;
+    const tw = doc.getTextWidth(s);
+    doc.setTextColor(0);
+    doc.text(s, x - tw / 2, y + 4);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    const lab = 'Puntaje';
+    const lw = doc.getTextWidth(lab);
+    doc.text(lab, x - lw / 2, y + r + 6);
   }
+
+  // Barras iniciales (aciertos, fallos, puntaje)
+  function drawOverviewBars(doc, { x, y, width, ok, bad, score, accent, okColor, badColor }) {
+    const H = 48; // alto del panel
+    const barH = 6, gap = 6;
+    const labelY = y + 6;
+    const left = x, right = x + width;
+
+    // Caja del panel
+    doc.setDrawColor(235);
+    doc.roundedRect(left, y, width, H, 2, 2, 'S');
+
+    // Etiqueta
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
+    doc.text('Resumen de desempeño', left + 5, labelY);
+
+    const barsX = left + 5;
+    let barsY = y + 12;
+
+    // Aciertos
+    drawBar('Aciertos', ok, ok + bad, okColor);
+
+    // Fallos
+    drawBar('Fallos', bad, ok + bad, badColor);
+
+    // Puntaje (sobre 100)
+    drawBar('Puntaje', score, 100, accent);
+
+    return y + H;
+
+    function drawBar(name, val, base, color) {
+      // etiqueta y valor
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5);
+      const valTxt = name === 'Puntaje' ? `${val}%` : `${val}/${base}`;
+      doc.text(name, barsX, barsY + 4.2);
+      const vtW = doc.getTextWidth(valTxt);
+      doc.text(valTxt, right - 5 - vtW, barsY + 4.2);
+
+      // barra
+      const trackX = barsX + 35, trackW = right - 5 - trackX - (vtW + 2);
+      doc.setDrawColor(220);
+      doc.setFillColor(245);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(trackX, barsY, trackW, barH, 1.5, 1.5, 'FD');
+
+      const ratio = base > 0 ? Math.max(0, Math.min(1, val / base)) : 0;
+      const fillW = Math.max(1.5, trackW * ratio);
+      doc.setFillColor(color);
+      doc.roundedRect(trackX, barsY, fillW, barH, 1.5, 1.5, 'F');
+
+      barsY += barH + gap;
+    }
+  }
+
+  function applyFooterAllPages(doc, { leftText, rightText }) {
+    const pageCount = doc.getNumberOfPages();
+    const footerY = A4_H - 9.5;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(80);
+
+    for (let p = 1; p <= pageCount; p++) {
+      doc.setPage(p);
+      doc.setDrawColor(230);
+      doc.line(MARGIN, footerY - 4.5, A4_W - MARGIN, footerY - 4.5);
+      doc.setDrawColor(0);
+
+      doc.text(leftText, MARGIN, footerY);
+
+      const mid = `Página ${p} de ${pageCount}`;
+      const midW = doc.getTextWidth(mid);
+      doc.text(mid, (A4_W - midW) / 2, footerY);
+
+      const rtW = doc.getTextWidth(rightText);
+      doc.text(rightText, A4_W - MARGIN - rtW, footerY);
+    }
+    doc.setTextColor(0);
+  }
+
+  function nowStr() {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+
+  // Carga perezosa de la librería QR si no existe window.QRCode
+async function ensureQRLib() {
+  if (window.QRCode) return;
+  await new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+    s.async = true;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('No se pudo cargar qrcode.min.js'));
+    document.head.appendChild(s);
+  });
+}
+
+// Genera un DataURL PNG del QR (para insertarlo con doc.addImage)
+async function makeQRDataURL(text, sizePx = 220) {
+  await ensureQRLib();
+
+  // contenedor fuera de pantalla para que no afecte el layout
+  const host = document.createElement('div');
+  host.style.position = 'fixed';
+  host.style.left = '-10000px';
+  document.body.appendChild(host);
+
+  // qrcodejs dibuja <canvas> o <img> dentro del contenedor
+  const tmp = document.createElement('div');
+  host.appendChild(tmp);
+
+  const qr = new QRCode(tmp, {
+    text: String(text || ''),
+    width: sizePx,
+    height: sizePx,
+    correctLevel: QRCode.CorrectLevel.M
+  });
+
+  // Espera un frame para que el canvas se pinte
+  await new Promise(r => requestAnimationFrame(r));
+
+  // Preferimos canvas para obtener toDataURL()
+  let dataURL = '';
+  const canvas = tmp.querySelector('canvas');
+  if (canvas) {
+    dataURL = canvas.toDataURL('image/png');
+  } else {
+    const img = tmp.querySelector('img');
+    dataURL = img && img.src ? img.src : '';
+  }
+
+  document.body.removeChild(host);
+  if (!dataURL) throw new Error('QR vacío');
+  return dataURL;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
   $('#btn-an-pdf').addEventListener('click', ()=>buildAnalyticsPDF({compact:false}));
   $('#btn-an-pdf-compact').addEventListener('click', ()=>buildAnalyticsPDF({compact:true}));
   $('#btn-ex-export-pdf-simple').addEventListener('click', buildExamPDF);
