@@ -1208,22 +1208,42 @@ function generateIntegralsBank(){
         }
         feedback = `Vuelve a intentarlo`;
       }
-      else if(tema==='derivadas'){
-        const {expr} = problem.data;
-        let dtexp = null;
-        try{ dtexp = math.derivative(expr,'x').toString(); }
-        catch(e){ try{ dtexp = nerdamer.diff(expr,'x').toString(); }catch(e2){ dtexp = null; } }
-        const pts = [ -1.3, -0.7, -0.2, 0.2, 0.7, 1.3, 2.1 ].map(v=>v + rnd(-2,2)*1e-3);
-        ok = true;
-        for(const x of pts){
-          const target = dtexp? safeEvalExpr(dtexp, x) : numericDerivative(expr,x);
-          const userv = safeEvalExpr(userAns, x);
-          if(!isFinite(target) || !isFinite(userv)){ ok=false; reason='unparsable'; break; }
-          const tol = 1e-2 * Math.max(1, Math.abs(target));
-          if(Math.abs(userv - target) > tol){ ok=false; reason='off_tolerance'; break; }
-        }
-        feedback = 'Vuelve a intentarlo.';
-      }
+      else if (tema === 'derivadas') {
+  const { expr } = problem.data;
+
+  // 1) Derivada "objetivo": simbólica si se puede, numérica si no.
+  let dtexp = null;
+  try { dtexp = math.derivative(expr, 'x').toString(); }
+  catch (e1) { try { dtexp = nerdamer.diff(expr, 'x').toString(); } catch (e2) { dtexp = null; } }
+
+  // 2) Candidatos de prueba (muchos) + jitter leve
+  const candidates = [-2, -1.5, -1.1, -0.9, -0.7, -0.5, -0.2, 0, 0.2, 0.5, 0.7, 0.9, 1.1, 1.5, 2];
+  const pts = [];
+  for (const v of candidates) {
+    const x = v + (Math.floor(Math.random() * 5) - 2) * 1e-3; // rnd(-2,2)*1e-3
+    let target = NaN;
+    try {
+      target = dtexp ? safeEvalExpr(dtexp, x) : numericDerivative(expr, x);
+    } catch { target = NaN; }
+    if (isFinite(target)) pts.push(x);
+  }
+
+  // 3) Si no hay puntos válidos, marca como no evaluable
+  if (pts.length === 0) {
+    ok = false; reason = 'unparsable'; feedback = 'Vuelve a intentarlo.';
+  } else {
+    ok = true;
+    for (const x of pts) {
+      const target = dtexp ? safeEvalExpr(dtexp, x) : numericDerivative(expr, x);
+      const userv  = safeEvalExpr(userAns, x);
+      if (!isFinite(userv)) { ok = false; reason = 'unparsable'; break; }
+      const tol = 1e-2 * Math.max(1, Math.abs(target));
+      if (Math.abs(userv - target) > tol) { ok = false; reason = 'off_tolerance'; break; }
+    }
+    feedback = ok ? '¡Bien!' : 'Vuelve a intentarlo.';
+  }
+}
+
       else if(tema==='integrales'){
         const kind = problem.kind;
         if(kind==='indef'){
